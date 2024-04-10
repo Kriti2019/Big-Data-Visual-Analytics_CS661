@@ -1,1 +1,222 @@
+# Necessary Imports
+
+# Plotly Library for creating isosurface and histogram
+import plotly.graph_objs as go
+import plotly.io as pio
+import plotly.subplots as sp
+
+# Importing Numpy
+import numpy as np
+
+# Importing Pyvista and vtk for loading the datafile
+import pyvista as pv
+import vtk
+
+# Necessary imports from Ipywidgets for slider and reset button
+from ipywidgets import widgets
+from IPython.display import display,clear_output
+
+
+
+# VTK library to read in a VTK XML Image Data file 
+reader = vtk.vtkXMLImageDataReader()
+reader.SetFileName('mixture.vti')
+reader.Update()
+data_ = reader.GetOutput()
+data_range= data_.GetPointData().GetScalars().GetRange()
+
+
+# Load the file using pyvista
+mesh = pv.read('mixture.vti')
+filename = 'mixture.vti'
+grid = pv.read(filename)
+data_array = grid.get_array('ImageFile')
+x, y, z = grid.points.T
+points = grid.get_array('ImageFile')
+
+
+# Extract scalar data from a VTK XML Image Data file previously read in using the VTK library
+scalar_data = np.array(data_.GetPointData().GetScalars())
+
+
+# Add a slider to control the isovalue of the isosurface
+# Create a floating-point slider widget with a specified range and step size
+slider = widgets.FloatSlider(
+    value=0.0,
+    min=data_range[0],
+    max=data_range[1],
+    step=0.01,
+    description='Isoval:',
+    continuous_update=False,
+    readout=True,
+    
+)
+
+slider.layout.width = '45%'
+
+# Update a Plotly figure containing an isosurface and histogram subplot based on the current value of a floating-point slider
+def update_isovalue_and_histogram(change):
+
+    # Get the current slider value
+    isovalue = change.new
+
+    # Clear the output of a Jupyter notebook cell 
+    clear_output(wait=True)
+    
+    # Create a Plotly figure with isosurface and histogram subplot
+    fig = sp.make_subplots(rows=1, cols=2,
+                           specs=[[{'type': 'scene'}, {'type': 'histogram'}]], horizontal_spacing =0.2
+                           )
+    
+    # Adds an isosurface trace to the Plotly figure
+    fig.add_trace(
+        go.Isosurface(
+            x=x,
+            y=y,
+            z=z,
+            value=points,
+            isomin=isovalue,
+            isomax=isovalue,
+            cauto =False,
+            cmin=data_range[0],
+            cmax=data_range[1],
+            surface_count=1,
+            colorscale='plasma',
+            caps=dict(x_show=False, y_show=False, z_show=False),
+            showscale=False,
+            opacity=1,
+
+        ),
+        row=1, col=1
+    )
+    
+    # Selects a subset of the scalar data based on a given isovalue
+    # Get the data values within +/- 0.25 of the current isovalue
+    data_subset = scalar_data[(scalar_data >= isovalue-0.25) & (scalar_data <= isovalue+0.25)]
+    
+    # Adds a histogram trace to the Plotly figure
+    fig.add_trace(
+        go.Histogram(
+            x=data_subset,
+            nbinsx=43,
+             marker=dict(color='blue'),opacity=0.55,
+            hovertemplate='Count: %{y}'
+        ),
+        row=1, col=2
+    )
+
+    # Set the layout for the figure
+    fig.update_layout(
+        scene=dict(
+            xaxis= dict(showticklabels = False),
+            yaxis= dict(showticklabels = False),
+            zaxis= dict(showticklabels = False),
+            aspectmode='data',
+            camera_eye=dict(x=1.2, y=1.0, z=1.2)
+        ),
+
+        margin=dict(t=50, b=50, l=0, r=0),
+        height=400,
+        width=800,
+        xaxis=dict(title="Vortex Scalar Values"),
+            yaxis=dict(title="Frequency"),
+    )
+
+    # Display Slider, Reset Button and the fig containing isosurface and histogram
+    display(widgets.HBox([slider, reset_button]))
+    display(fig)
+    
+    
+# Called when the user clicks the "Reset" button
+def reset_plots(change):
+    
+    # Reset the slider value
+    slider.value = 0.0
+    isovalue = 0
+    
+    # Clear the output of a Jupyter notebook cell 
+    clear_output(wait=True)
+    
+    # Create a Plotly figure with isosurface and histogram subplot
+    fig = sp.make_subplots(rows=1, cols=2,
+                           specs=[[{'type': 'scene'}, {'type': 'histogram'}]], horizontal_spacing =0.2
+                           )
+    
+    # Adds an isosurface trace to the Plotly figure
+    fig.add_trace(
+        go.Isosurface(
+            x=x,
+            y=y,
+            z=z,
+            value=points,
+            isomin=isovalue,
+            isomax=isovalue,
+            cauto =False,
+            cmin=data_range[0],
+            cmax=data_range[1],
+            surface_count=1,
+            colorscale='plasma',
+            caps=dict(x_show=False, y_show=False, z_show=False),
+            showscale=False,
+            opacity=1,
+
+        ),
+        row=1, col=1
+    )
+
+    # Adds a histogram trace to the Plotly figure
+    fig.add_trace(
+        go.Histogram(
+            x=scalar_data,
+            nbinsx=43,
+             marker=dict(color='blue'),opacity=0.55,
+            hovertemplate='Count: %{y}'
+        ),
+        row=1, col=2
+    )
+
+    # Set the layout for the figure
+    fig.update_layout(
+        scene=dict(
+            xaxis= dict(showticklabels = False),
+            yaxis= dict(showticklabels = False),
+            zaxis= dict(showticklabels = False),
+            aspectmode='data',
+            camera_eye=dict(x=1.3, y=1.3, z=1.3)
+        ),
+
+        margin=dict(t=50, b=50, l=0, r=0),
+        height=400,
+        width=800,
+        xaxis=dict(title="Vortex scalar values"),
+            yaxis=dict(title="Frequency"),
+    )
+    
+    # Display the layout
+    display(widgets.HBox([slider, reset_button]))
+    display(fig)
+
+
+
+# Sets up an observer on the slider widget that will call the update_isovalue_and_histogram function whenever the value attribute of the slider change
+slider.observe(update_isovalue_and_histogram, names='value')
+
+# Create a Button widget object
+reset_button = widgets.Button(description="Reset",button_style='', style={'border-color': 'blue','color':'black'})
+
+
+def set_border_color_to_blue(button):
+    button.style.border_color = 'blue'
+
+reset_button.on_click(set_border_color_to_blue)
+
+
+# Links the reset_plots() function to the on_click event of the reset_button
+reset_button.on_click(reset_plots)
+
+# Add the reset button to the display and link it to the reset function
+display(widgets.HBox([slider, reset_button]))
+
+# Resetting the plots to their initial state       
+reset_plots(0)
 
